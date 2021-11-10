@@ -45,10 +45,13 @@ class TPromise {
     })
   }
 
+
+  /**
+   * 原封不动的返回参数
+   * @param {*} reason 
+   * @returns 
+   */
   static reject = (reason) => {
-    if (reason instanceof TPromise) {
-      return reason
-    }
     return new TPromise((_, reject) => {
       reject(reason)
     })
@@ -105,10 +108,10 @@ class TPromise {
    * @param {*} resolve 新promise的resolve
    * @param {*} reject 新promise的reject 用于处理执行失败的状态
    */
-  thenCallbackHandler = (val, thenCb, resolve, reject) => {
+  thenCallbackHandler = (result, resolve, reject) => {
     try {
       // 如果then方法没有提供 onFulfilled 方法，那么返回前一个promise的value 从而实现then的穿透
-      let result = thenCb && thenCb(val) || this.value
+      // let result = thenCb(val)
       // 在then方法中不能返回当前promise
       if (result === this) {
         throw new TypeError('Chaining cycle detected from promise')
@@ -117,7 +120,7 @@ class TPromise {
         // 用返回的promise的结果来修改下一个promise的状态
         result.then(resolve, reject)
       } else {
-        resolve && resolve(result)
+        resolve(result)
       }
     } catch (error) {
       reject && reject(error)
@@ -132,11 +135,15 @@ class TPromise {
       this.callbacks.push({
         successCallback: (val) => {
           // 当前一个then方法的 onFulfilled 执行完成并返回时，resolve去修改当前返回的promise的值，
-          this.thenCallbackHandler(val, onFulfilled, resolve, reject);
+          onFulfilled
+            && this.thenCallbackHandler(onFulfilled(val), resolve, reject)
+            || resolve(val) // then穿透处理
         },
         errorCallback: (reason) => {
           // 前一个promise的失败或异常并影响新返回的promise的状态，因此此处执行 errorCallback 后调用resolve
-          this.thenCallbackHandler(reason, onRejected, resolve, reject);
+          onRejected
+            && this.thenCallbackHandler(onRejected(reason), resolve, reject)
+            || reject(reason) // then穿透处理
         }
       });
     })
@@ -196,10 +203,10 @@ const myPromise = new TPromise((resolve, reject) => {
   // setTimeout(() => {
     // console.log('aaa',aaa);xw
     
-    resolve('我是myPromise');
+    // resolve('我是myPromise');
   // }, 1000);
     // console.log('德玛西亚');
-  // reject("我是错误的原因")
+  reject("我是错误的原因")
 });
 
 myPromise
@@ -211,16 +218,19 @@ myPromise
       }, 2000);
     })
   })
-  .then((res) => {
+  .then(
+    (res) => {
     console.log('这是前一个then中返回的结果1', res);
-    return new TPromise((resolve) => {
-      setTimeout(() => {
-        resolve('噢哈哈哈哈')
-      }, 2000)
-   })
-  }, (reason) => {
-    console.log('---myPromise---rejected2', reason);
-  })
+      return new TPromise((resolve) => {
+        setTimeout(() => {
+          resolve('噢哈哈哈哈')
+        }, 2000)
+      })
+    },
+    (reason) => {
+      console.log('---myPromise---rejected2', reason);
+    }
+  )
   .then(
     (res) => {
       console.log('这是前一个then中返回的结果2', res);
@@ -248,9 +258,34 @@ TPromise.resolve(() => {
 // console.log('myPromise', myPromise);
 
 
-// const promise = new Promise((resolve, reject) => {
-//   resolve('我是原生promise')
-// });
+const promise = new TPromise((resolve, reject) => {
+  reject('我是原生TPromise产生的结果')
+});
+promise
+  .then(() => {
+    return '德玛西亚'
+  }) // 未出里rejected的状态
+  .then(
+    (res) => {
+      console.log('这里不该执行:', res);
+    },
+    // reason => {
+    //   console.log('处理拒绝状态：', reason);
+    // }
+  )
+  .then(
+    (res) => {
+      console.log('阿范德萨发神鼎飞丹砂：', res);
+    },
+     reason => {
+      console.log('处理拒绝状态：', reason);
+    }
+  )
+
+
+
+
+
 
 const p1 = new TPromise(resolve => {
   setTimeout(() => {
@@ -259,9 +294,20 @@ const p1 = new TPromise(resolve => {
 })
 const p2 = new TPromise((resolve,reject) => {
   setTimeout(() => {
-    resolve('hhhhhhreject')
+    reject('给resolve传入了一个拒绝的promise')
   }, 2000);
 })
+
+TPromise.reject(p2).then(
+  res => {
+    console.log('这是什么结果', res);
+  },
+  reason => {
+    console.log('这是什么原因', reason);
+  }
+)
+
+
 
 
 TPromise.race([p1, p2]).then(
@@ -284,7 +330,21 @@ TPromise.race([p1, p2]).then(
  *  reject、
  *  all
  *  race等实现
+ * 5、如果then方法中没有传递对应的决议处理方法，对应的决议状态降被下一个传递了对应处理方法的地方处理，promise状态的穿透性
  */
+
+
+
+const pp2 = new Promise((_, reject) => {
+  reject('原始promise拒绝处理')
+})
+
+pp2.catch(
+  res => {
+    console.log('catch:', res);
+  }
+)
+
 
 
 console.log('异步test');
