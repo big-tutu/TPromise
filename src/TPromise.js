@@ -59,7 +59,8 @@ class TPromise {
 
 
   /**
-   * 等待一组promise的结果，只要有一个失败既失败
+   * 等待一组promise的结果，只要有一个失败既失败，如果传入错的数组中不是promise、或者thenable，而是立即值，
+   * 这个值也会先使用promise.resolve处理贵违法的promise
    * @param {*} promises 
    * @returns 
    */
@@ -71,7 +72,8 @@ class TPromise {
     return new TPromise((resolve, reject) => {
       let results = []
       promises.forEach((promise, index) => {
-        promise.then(
+          // TPromise.resolve 将立即promise规范化
+        TPromise.resolve(promise).then(
           (val) => {
             results[index] = val;
             if (results.length === promises.length) {
@@ -86,7 +88,8 @@ class TPromise {
 
 
   /**
-   * 竞态，取第一个改变状态的promise的结果
+   * 竞态，取第一个改变状态的promise的决议或者是拒绝的结果,
+   * 如果数组中传递了立即值，那么这个值会最先被获取，因此，传入立即值是没有意义的
    * @param {*} promise 
    */
   static race = (promises) => {
@@ -95,7 +98,8 @@ class TPromise {
     }
 
     return new TPromise((resolve, reject) => {
-      promises.map(promise => promise.then(resolve, reject))
+      // TPromise.resolve 将立即promise规范化
+      promises.map(promise => TPromise.resolve(promise).then(resolve, reject))
     })
   }
 
@@ -110,8 +114,6 @@ class TPromise {
    */
   thenCallbackHandler = (result, resolve, reject) => {
     try {
-      // 如果then方法没有提供 onFulfilled 方法，那么返回前一个promise的value 从而实现then的穿透
-      // let result = thenCb(val)
       // 在then方法中不能返回当前promise
       if (result === this) {
         throw new TypeError('Chaining cycle detected from promise')
@@ -127,7 +129,18 @@ class TPromise {
     }
   }
 
-
+  /**
+   * 错误补货，返回一个promise
+   * @param {*} cb 
+   * @returns 
+   */
+  catch = (cb) => {
+    return new Promise((resolve, reject) => {
+      if (this.status === TPromise.rejected) {
+        cb && this.thenCallbackHandler(cb(this.value), resolve, reject) || reject(this.value)
+      }
+    })
+  }
 
   then = (onFulfilled, onRejected) => {
 
@@ -242,12 +255,14 @@ myPromise
   
 
 
-TPromise.resolve(() => {
-  return '将一个方法封装为可信任的promise'
+
+const p4 = new TPromise(resolve => {
+  setTimeout(() => resolve('p4 fulfilled'), 1000)
 })
+TPromise.resolve(p4)
   .then(
     res => {
-      console.log('静态resolve', res());
+      console.log('静态resolve', res);
     },
     reason => {
       console.log('静态方法中返回错误了', reason);
@@ -289,14 +304,15 @@ promise
 
 const p1 = new TPromise(resolve => {
   setTimeout(() => {
-    resolve('hhhhhh')
+    resolve('p1 fulfilled')
   }, 1000);
 })
-const p2 = new TPromise((resolve,reject) => {
-  setTimeout(() => {
-    reject('给resolve传入了一个拒绝的promise')
-  }, 2000);
+const p2 = new TPromise((resolve, reject) => {
+  resolve('p2 fulfilled')
 })
+
+
+
 
 TPromise.reject(p2).then(
   res => {
@@ -310,14 +326,27 @@ TPromise.reject(p2).then(
 
 
 
-TPromise.race([p1, p2]).then(
+TPromise.all([p1, p2, p4]).then(
   res => {
-  console.log('all', res);
+  console.log('TPromise.all:', res);
   },
   reason => {
     console.log('reason 失败', reason);
   }
 )
+
+
+// catch 测试
+const pp5 = new TPromise((resolve, reject) => {
+  reject("catch 测试")
+})
+pp5.catch(err => {
+console.log('sdafsadfdsafdsafds', err);
+}).catch(err => {
+  console.log('catch测试:', err);
+})
+
+
 
 
 
