@@ -107,8 +107,7 @@ class TPromise {
 
   /**
    * 处理then中的两个回调方法
-   * @param {*} val promise的值
-   * @param {*} thenCb then方法中的两个回调
+   * @param {*} result then方法中的回调执行完成返回的值
    * @param {*} resolve 新promise的resolve
    * @param {*} reject 新promise的reject 用于处理执行失败的状态
    */
@@ -135,11 +134,7 @@ class TPromise {
    * @returns 
    */
   catch = (cb) => {
-    return new Promise((resolve, reject) => {
-      if (this.status === TPromise.rejected) {
-        cb && this.thenCallbackHandler(cb(this.value), resolve, reject) || reject(this.value)
-      }
-    })
+    return this.then(null, cb);
   }
 
   then = (onFulfilled, onRejected) => {
@@ -324,8 +319,7 @@ TPromise.reject(p2).then(
 )
 
 
-
-
+// promise.all 调试
 TPromise.all([p1, p2, p4]).then(
   res => {
   console.log('TPromise.all:', res);
@@ -338,13 +332,21 @@ TPromise.all([p1, p2, p4]).then(
 
 // catch 测试
 const pp5 = new TPromise((resolve, reject) => {
-  reject("catch 测试")
+  setTimeout(() => {
+    reject("catch 测试")
+  }, 2000);
 })
-pp5.catch(err => {
-console.log('sdafsadfdsafdsafds', err);
-}).catch(err => {
-  console.log('catch测试:', err);
-})
+pp5
+  .catch(
+    err => {
+      console.log('catch测试1:', err);
+    }
+  )
+  .catch(
+    err => {
+      console.log('catch测试2:', err);
+    }
+  )
 
 
 
